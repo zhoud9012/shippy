@@ -68,6 +68,17 @@ protoc -I. --go_out=plugins=grpc:$(GOPATH)/src/shippy/consignment-service/proto/
 protoc -I. --go_out=plugins=grpc:$env:GOPATH .\src\shippy\consignment-service\proto\consignment\consignment.proto
 
 
+#### 序列化与协议文件对应关系
+
+service：
+
+protobuf 编译器的grpc插件 将proto序列化文件中service 中的 rpc 方法 转化成pb协议文件中的一个接口
+
+message：
+
+protobuf 编译器的grpc插件 将proto序列化文件中的通信数据结构message 转化成一个结构体
+
+
 
 
 
