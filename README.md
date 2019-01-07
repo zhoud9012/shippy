@@ -78,6 +78,27 @@ message：
 
 protobuf 编译器的grpc插件 将proto序列化文件中的通信数据结构message 转化成一个结构体
 
+#### 通过go-micro 编译协议文件 不在使用grpc插件
+
+1.linux
+protoc -I. --go_out=plugins=micro:$(GOPATH)/src/shippy/consignment-service proto/consignment/consignment.proto
+
+
+2.windows
+
+protoc -I. --go_out=plugins=micro:$env:GOPATH ./src/shippy/consignment-service proto/consignment/consignment.proto
+
+### 实现服务端
+
+0.创建main.go 文件
+
+1.导入protoc 自动生成的包
+
+2.生成端口常量
+
+3.
+
+
 
 
 
