@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	pb "shippy/vessel-service/proto/vessel"
 
 	micro "github.com/micro/go-micro"
@@ -60,6 +60,7 @@ func main() {
 	pb.RegisterVesselServiceHandler(server.Server(), &service{repo})
 
 	if err := server.Run(); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		//log.Fatalf("failed to serve: %v", err)
+		fmt.Println(err)
 	}
 }

@@ -103,6 +103,16 @@ docker build -t consignment-service.1.0.0 .
 docker run -p 50051:50051 -e MICRO_SERVER_ADDRESS=:50051 -e MICRO_REGISTRY=mdns consignment-service.1.0.0
 ```
 
+#### 服务端手动步骤
+```
+1.执行交叉编译
+./build Linux64.bat
+2.编译服务端镜像
+docker build -t vessel-service.1.0.0 .
+3.运行服务端容器
+docker run -p 50052:50051 -e MICRO_SERVER_ADDRESS=:50051 -e MICRO_REGISTRY=mdns vessel-service.1.0.0
+```
+
 #### 客户端手动步骤
 ```
 1.执行交叉编译

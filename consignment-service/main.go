@@ -1,81 +1,90 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"log"
 	pb "shippy/consignment-service/proto/consignment"
 
+	vessel "shippy/vessel-service/proto/vessel"
+
 	micro "github.com/micro/go-micro"
+	"golang.org/x/net/context"
 )
 
-//
-// 仓库接口
-//
-type IRepository interface {
-	Create(consignment *pb.Consignment) (*pb.Consignment, error) // 存放新货物
-	GetAll() []*pb.Consignment                                   // 获取仓库中所有的货物
+type Repository interface {
+	Create(*pb.Consignment) (*pb.Consignment, error)
+	GetAll() []*pb.Consignment
 }
 
-//
-// 我们存放多批货物的仓库，实现了 IRepository 接口
-//
-type Repository struct {
+type ConsignmentRepository struct {
 	consignments []*pb.Consignment
 }
 
-func (repo *Repository) Create(consignment *pb.Consignment) (*pb.Consignment, error) {
-	repo.consignments = append(repo.consignments, consignment)
+func (repo *ConsignmentRepository) Create(consignment *pb.Consignment) (*pb.Consignment, error) {
+	updated := append(repo.consignments, consignment)
+	repo.consignments = updated
 	return consignment, nil
 }
 
-func (repo *Repository) GetAll() []*pb.Consignment {
+func (repo *ConsignmentRepository) GetAll() []*pb.Consignment {
 	return repo.consignments
 }
 
-//
-// 定义微服务
-//
 type service struct {
-	repo Repository
+	repo         Repository
+	vesselClient vessel.VesselServiceClient
 }
 
-//
-// 实现 consignment.pb.go 中的 ShippingServiceHandler 接口
-// 使 service 作为 gRPC 的服务端
-//
-// 托运新的货物
-// func (s *service) CreateConsignment(ctx context.Context, req *pb.Consignment) (*pb.Response, error) {
-func (s *service) CreateConsignment(ctx context.Context, req *pb.Consignment, resp *pb.Response) error {
-	// 接收承运的货物
+func (s *service) CreateConsignment(ctx context.Context, req *pb.Consignment, res *pb.Response) error {
+	response, err := s.vesselClient.FindAvailable(context.Background(), &vessel.Specification{
+		MaxWeight: req.Weight,
+		Capacity:  int32(len(req.Containers)),
+	})
+	log.Printf("Found vessel:%s \n", response.Vessel.Name)
+	if err != nil {
+		return err
+	}
+
+	req.VesselId = response.Vessel.Id
+
 	consignment, err := s.repo.Create(req)
 	if err != nil {
 		return err
 	}
-	resp = &pb.Response{Created: true, Consignment: consignment}
+
+	res.Created = true
+	res.Consignment = consignment
+
 	return nil
 }
 
-// 获取目前所有托运的货物
-// func (s *service) GetConsignments(ctx context.Context, req *pb.GetRequest) (*pb.Response, error) {
-func (s *service) GetConsignments(ctx context.Context, req *pb.GetRequest, resp *pb.Response) error {
-	allConsignments := s.repo.GetAll()
-	resp = &pb.Response{Consignments: allConsignments}
+func (s *service) GetConsignments(ctx context.Context, req *pb.GetRequest, res *pb.Response) error {
+	consignments := s.repo.GetAll()
+	res.Consignments = consignments
 	return nil
 }
 
 func main() {
-	server := micro.NewService(
-		// 必须和 consignment.proto 中的 package 一致
+	repo := &ConsignmentRepository{}
+
+	// Create a new service. Optionally include some options here
+	srv := micro.NewService(
+		// This name must match the package name give in your protobuf definition
 		micro.Name("go.micro.srv.consignment"),
 		micro.Version("latest"),
 	)
 
-	// 解析命令行参数
-	server.Init()
-	repo := Repository{}
-	pb.RegisterShippingServiceHandler(server.Server(), &service{repo})
+	client := vessel.NewVesselServiceClient("go.micro.srv.vessel", srv.Client())
 
-	if err := server.Run(); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	// Init will parse the command line flags
+	srv.Init()
+
+	// Register handler
+	pb.RegisterShippingServiceHandler(srv.Server(), &service{repo, client})
+
+	// Run the server
+	if err := srv.Run(); err != nil {
+		fmt.Println(err)
 	}
+
 }
