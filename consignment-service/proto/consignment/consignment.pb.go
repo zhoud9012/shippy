@@ -3,12 +3,14 @@
 
 package go_micro_srv_consignment
 
+import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
+
 import (
-	context "context"
-	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
-	grpc "google.golang.org/grpc"
-	math "math"
+	client "github.com/micro/go-micro/client"
+	server "github.com/micro/go-micro/server"
+	context "golang.org/x/net/context"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +24,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// 货轮承运的一批货物
+// 货物信息
 type Consignment struct {
 	Id                   string       `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Description          string       `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
@@ -94,7 +96,7 @@ func (m *Consignment) GetVesselId() string {
 	return ""
 }
 
-// 单个集装箱
+// 集装箱
 type Container struct {
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	CustomerId           string   `protobuf:"bytes,2,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
@@ -160,8 +162,9 @@ func (m *Container) GetUserId() string {
 
 // 托运结果
 type Response struct {
-	Created              bool           `protobuf:"varint,1,opt,name=created,proto3" json:"created,omitempty"`
-	Consignment          *Consignment   `protobuf:"bytes,2,opt,name=consignment,proto3" json:"consignment,omitempty"`
+	Created     bool         `protobuf:"varint,1,opt,name=created,proto3" json:"created,omitempty"`
+	Consignment *Consignment `protobuf:"bytes,2,opt,name=consignment,proto3" json:"consignment,omitempty"`
+	// Added a pluralised consignment to our generic response message
 	Consignments         []*Consignment `protobuf:"bytes,3,rep,name=consignments,proto3" json:"consignments,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
@@ -214,8 +217,7 @@ func (m *Response) GetConsignments() []*Consignment {
 	return nil
 }
 
-// 查看货物信息的请求
-// 客户端想要从服务端请求数据，必须有请求格式，哪怕为空
+// Created a blank GetRequest
 type GetRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -254,6 +256,85 @@ func init() {
 	proto.RegisterType((*GetRequest)(nil), "go.micro.srv.consignment.GetRequest")
 }
 
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ client.Option
+var _ server.Option
+
+// Client API for ShippingService service
+
+type ShippingServiceClient interface {
+	// 托运一批货物
+	CreateConsignment(ctx context.Context, in *Consignment, opts ...client.CallOption) (*Response, error)
+	// 查看货物信息
+	// Created a new method
+	GetConsignments(ctx context.Context, in *GetRequest, opts ...client.CallOption) (*Response, error)
+}
+
+type shippingServiceClient struct {
+	c           client.Client
+	serviceName string
+}
+
+func NewShippingServiceClient(serviceName string, c client.Client) ShippingServiceClient {
+	if c == nil {
+		c = client.NewClient()
+	}
+	if len(serviceName) == 0 {
+		serviceName = "go.micro.srv.consignment"
+	}
+	return &shippingServiceClient{
+		c:           c,
+		serviceName: serviceName,
+	}
+}
+
+func (c *shippingServiceClient) CreateConsignment(ctx context.Context, in *Consignment, opts ...client.CallOption) (*Response, error) {
+	req := c.c.NewRequest(c.serviceName, "ShippingService.CreateConsignment", in)
+	out := new(Response)
+	err := c.c.Call(ctx, req, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *shippingServiceClient) GetConsignments(ctx context.Context, in *GetRequest, opts ...client.CallOption) (*Response, error) {
+	req := c.c.NewRequest(c.serviceName, "ShippingService.GetConsignments", in)
+	out := new(Response)
+	err := c.c.Call(ctx, req, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Server API for ShippingService service
+
+type ShippingServiceHandler interface {
+	// 托运一批货物
+	CreateConsignment(context.Context, *Consignment, *Response) error
+	// 查看货物信息
+	// Created a new method
+	GetConsignments(context.Context, *GetRequest, *Response) error
+}
+
+func RegisterShippingServiceHandler(s server.Server, hdlr ShippingServiceHandler, opts ...server.HandlerOption) {
+	s.Handle(s.NewHandler(&ShippingService{hdlr}, opts...))
+}
+
+type ShippingService struct {
+	ShippingServiceHandler
+}
+
+func (h *ShippingService) CreateConsignment(ctx context.Context, in *Consignment, out *Response) error {
+	return h.ShippingServiceHandler.CreateConsignment(ctx, in, out)
+}
+
+func (h *ShippingService) GetConsignments(ctx context.Context, in *GetRequest, out *Response) error {
+	return h.ShippingServiceHandler.GetConsignments(ctx, in, out)
+}
+
 func init() {
 	proto.RegisterFile("src/shippy/consignment-service/proto/consignment/consignment.proto", fileDescriptor_1e45095a41e558c6)
 }
@@ -283,113 +364,4 @@ var fileDescriptor_1e45095a41e558c6 = []byte{
 	0x19, 0xee, 0xeb, 0xf5, 0x32, 0xbb, 0x7d, 0x6d, 0xf8, 0xaf, 0xec, 0x09, 0xfb, 0x04, 0xab, 0x1d,
 	0xba, 0x80, 0x23, 0xf6, 0xf6, 0x36, 0x78, 0x8d, 0x7b, 0xdf, 0xf3, 0x5f, 0x67, 0x7e, 0xd3, 0x3f,
 	0xfc, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x7f, 0x3f, 0xa2, 0x59, 0x2f, 0x03, 0x00, 0x00,
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
-
-// ShippingServiceClient is the client API for ShippingService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type ShippingServiceClient interface {
-	// 托运一批货物
-	CreateConsignment(ctx context.Context, in *Consignment, opts ...grpc.CallOption) (*Response, error)
-	// 查看托运货物的信息
-	GetConsignments(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*Response, error)
-}
-
-type shippingServiceClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewShippingServiceClient(cc *grpc.ClientConn) ShippingServiceClient {
-	return &shippingServiceClient{cc}
-}
-
-func (c *shippingServiceClient) CreateConsignment(ctx context.Context, in *Consignment, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
-	err := c.cc.Invoke(ctx, "/go.micro.srv.consignment.ShippingService/CreateConsignment", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *shippingServiceClient) GetConsignments(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
-	err := c.cc.Invoke(ctx, "/go.micro.srv.consignment.ShippingService/GetConsignments", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// ShippingServiceServer is the server API for ShippingService service.
-type ShippingServiceServer interface {
-	// 托运一批货物
-	CreateConsignment(context.Context, *Consignment) (*Response, error)
-	// 查看托运货物的信息
-	GetConsignments(context.Context, *GetRequest) (*Response, error)
-}
-
-func RegisterShippingServiceServer(s *grpc.Server, srv ShippingServiceServer) {
-	s.RegisterService(&_ShippingService_serviceDesc, srv)
-}
-
-func _ShippingService_CreateConsignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Consignment)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ShippingServiceServer).CreateConsignment(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/go.micro.srv.consignment.ShippingService/CreateConsignment",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShippingServiceServer).CreateConsignment(ctx, req.(*Consignment))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ShippingService_GetConsignments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ShippingServiceServer).GetConsignments(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/go.micro.srv.consignment.ShippingService/GetConsignments",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShippingServiceServer).GetConsignments(ctx, req.(*GetRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _ShippingService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "go.micro.srv.consignment.ShippingService",
-	HandlerType: (*ShippingServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "CreateConsignment",
-			Handler:    _ShippingService_CreateConsignment_Handler,
-		},
-		{
-			MethodName: "GetConsignments",
-			Handler:    _ShippingService_GetConsignments_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "src/shippy/consignment-service/proto/consignment/consignment.proto",
 }
