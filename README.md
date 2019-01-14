@@ -136,6 +136,16 @@ docker run -e MICRO_REGISTRY=mdns  consignment-cli.1.0.0
 #### 参考仓库
 https://github.com/nealguo/go-micro-demo
 
+#### 容器编排
+
+docker-compose run vessel-service
+
+docker-compose run consignment-service
+
+docker-compose run consignment-cli
+
+
+
 
 
 
